@@ -53,7 +53,7 @@ Mongo.Collection = function Collection(name, optionsParam = {}) {
     transform: null,
     _driver: undefined,
     _preventAutopublish: false,
-      ...optionsParam,
+    ...optionsParam,
   };
 
   switch (options.idGeneration) {
@@ -84,8 +84,8 @@ Mongo.Collection = function Collection(name, optionsParam = {}) {
   else
     this._connection = Meteor.server;
 
-  this.openDriver = () => {
-    options._driver = this._driver;
+  this.openDriver = (driver) => {
+    this._driver = driver;
     this._collection = this._driver.open(name, this._connection);
   }
 
@@ -96,7 +96,9 @@ Mongo.Collection = function Collection(name, optionsParam = {}) {
   this.isAsync = options.isAsync;
   this.isAsyncInitialized = false;
 
-  if (!options._driver) {
+  if (options._driver) {
+    this.openDriver(options._driver);
+  } else {
     // XXX This check assumes that webapp is loaded so that Meteor.server !==
     // null. We should fully support the case of "want to use a Mongo-backed
     // collection from Node code without webapp", but we don't yet.
@@ -107,22 +109,22 @@ Mongo.Collection = function Collection(name, optionsParam = {}) {
 
       if (this.isAsync) {
         this.asyncInit = async () => {
-          this._driver = await MongoInternals.defaultRemoteCollectionDriver();
-          this.openDriver();
+          const driver = await MongoInternals.defaultRemoteCollectionDriver();
+          this.openDriver(driver);
           return this;
         }
       } else {
         // TODO [fiber removal]
         // Promise.await here is ok as this is to keep compatibility for sync
         // collections
-        this._driver = Promise.await(MongoInternals.defaultRemoteCollectionDriver());
-        this.openDriver();
+        const driver = Promise.await(MongoInternals.defaultRemoteCollectionDriver());
+        this.openDriver(driver);
       }
     } else {
       const { LocalCollectionDriver } =
         require("./local_collection_driver.js");
-      this._driver = LocalCollectionDriver;
-      this.openDriver();
+      const driver = LocalCollectionDriver;
+      this.openDriver(driver);
     }
   }
 
@@ -819,7 +821,6 @@ function popCallbackFromArgs(args) {
         throw new Error(
           `It is only allowed to use ${asyncName} method in async collections. Use "Mongo.createAsyncCollection" to create async collections.`);
       }
-      console.log(`this.isAsyncInitialized`, this.isAsyncInitialized);
 
       if (!this.isAsyncInitialized) {
         const instance = await this.pendingPromise;
